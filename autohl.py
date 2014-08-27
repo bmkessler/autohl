@@ -8,7 +8,6 @@ Created on Thu Jul 24 07:28:50 2014
 import nltk
 import nltk.data
 import numpy as np
-from sklearn.cluster import AffinityPropagation
 from itertools import chain
 import argparse
 
@@ -24,18 +23,32 @@ def process_text_to_sentences(raw_text):
     return sent_tokenizer.tokenize(raw_text.strip())
 
 def process_sentences_to_stems(sentences, min_word_len=5):
+    """
+    Splits a a list of strings (sentences) into words
+    normalizes those to lower case and drops words shorter than min_word length
+    it then returns sets of word stems by applying the porter stemmer
+    """
     word_sentences = [nltk.wordpunct_tokenize(sentence.decode('utf-8')) for sentence in sentences]
     norm_word_sentences = [[w.lower() for w in sentence if len(w)>=min_word_len] for sentence in word_sentences]
     stem_sentences = [set([porter.stem(w) for w in sentence]) for sentence in norm_word_sentences ]
     return stem_sentences
       
 def sim_text_rank(sent_1,sent_2,eps=0.01):
+    """
+    Similarity between two sets of words given by the number of words in common
+    divided by the log of the size of each set.  the parameter eps=0.01 gives the
+    score for the pathological case of two identical one word sets
+    """
     numerator = len(sent_1.intersection(sent_2))
     if numerator>0:
         return numerator/(np.log(len(sent_1)+eps)+np.log(len(sent_2)+eps))
     return 0
     
 def generate_similarity_matrix(stem_sentences,sim_func=sim_text_rank):
+    """
+    Computes the similarity matrix (symmetric) for a list of sets of words
+    using the similarity function sim_func
+    """
     N_sentences = len(stem_sentences)
     sim_matrix = np.zeros([N_sentences,N_sentences])
     for i in range(N_sentences):
@@ -45,6 +58,9 @@ def generate_similarity_matrix(stem_sentences,sim_func=sim_text_rank):
     return sim_matrix
 
 def page_rank(sim_matrix,alpha=0.85,iterations=200,tol=1e-8):
+    """
+    The PageRank algorithm for an undirected weighted graph
+    """
     N_sentences = len(sim_matrix)
     weights = [sum(row) for row in sim_matrix]
     norm_sim_matrix = np.zeros([N_sentences,N_sentences])
@@ -64,6 +80,13 @@ def page_rank(sim_matrix,alpha=0.85,iterations=200,tol=1e-8):
     return scores
     
 def process_txt_to_html(filename,outfile):
+    """
+    Processes a text file given by filename
+    ranking the sentences via TextRank algorithm
+    and writes the results to an html file (outfile)
+    with a slider that selectively highlights 
+    the sentences in importance
+    """
     raw_text = read_textfile(filename)
     sentences = process_text_to_sentences(raw_text)
     stem_sentences = process_sentences_to_stems(sentences, min_word_len=5)
